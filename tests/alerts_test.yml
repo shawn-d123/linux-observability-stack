@@ -1,0 +1,74 @@
+# Unit tests for the alert rules, run with: promtool test rules tests/alerts_test.yml
+# Each test feeds in made-up series and checks which alerts fire and when.
+rule_files:
+  - ../prometheus/alerts.yml
+
+evaluation_interval: 1m
+
+tests:
+  - name: endpoint down fires after two minutes, not before
+    interval: 1m
+    input_series:
+      - series: 'tcp_probe_up{target="github"}'
+        values: "1 0 0 0 0"
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: EndpointDown
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: EndpointDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              target: github
+            exp_annotations:
+              summary: "TCP connections to github have been failing for 2 minutes"
+
+  - name: disk almost full fires when free space drops under 10%
+    interval: 1m
+    input_series:
+      - series: 'node_filesystem_avail_bytes{instance="node-exporter:9100", mountpoint="/", fstype="ext4"}'
+        values: "5x10"
+      - series: 'node_filesystem_size_bytes{instance="node-exporter:9100", mountpoint="/", fstype="ext4"}'
+        values: "100x10"
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: DiskAlmostFull
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              instance: node-exporter:9100
+              mountpoint: /
+              fstype: ext4
+            exp_annotations:
+              summary: "/ on node-exporter:9100 has less than 10% space left"
+
+  - name: tmpfs mounts are ignored
+    interval: 1m
+    input_series:
+      - series: 'node_filesystem_avail_bytes{instance="node-exporter:9100", mountpoint="/run", fstype="tmpfs"}'
+        values: "1x10"
+      - series: 'node_filesystem_size_bytes{instance="node-exporter:9100", mountpoint="/run", fstype="tmpfs"}'
+        values: "100x10"
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: DiskAlmostFull
+        exp_alerts: []
+
+  - name: slow connection only alerts once it has stayed slow
+    interval: 1m
+    input_series:
+      - series: 'tcp_probe_connect_seconds{target="cloudflare-dns"}'
+        values: "0.02 0.9 0.9 0.9 0.9 0.9 0.9 0.9"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: SlowTcpConnect
+        exp_alerts: []
+      - eval_time: 7m
+        alertname: SlowTcpConnect
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              target: cloudflare-dns
+            exp_annotations:
+              summary: "Opening a connection to cloudflare-dns is taking over 500 ms"

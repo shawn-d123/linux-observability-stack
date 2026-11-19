@@ -1,0 +1,18 @@
+# Services the TCP exporter checks. Add your own with a name, host and port.
+# Names show up as the "target" label in Prometheus and on the dashboard.
+targets:
+  - name: prometheus
+    host: prometheus
+    port: 9090
+  - name: grafana
+    host: grafana
+    port: 3000
+  - name: node-exporter
+    host: node-exporter
+    port: 9100
+  - name: github
+    host: github.com
+    port: 443
+  - name: cloudflare-dns
+    host: one.one.one.one
+    port: 443

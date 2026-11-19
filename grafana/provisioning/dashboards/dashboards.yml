@@ -1,0 +1,11 @@
+# Loads every dashboard JSON file in /var/lib/grafana/dashboards.
+# Edits made in the UI are not saved back, so change the JSON file instead.
+apiVersion: 1
+
+providers:
+  - name: linux-host
+    folder: Linux Host
+    type: file
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards

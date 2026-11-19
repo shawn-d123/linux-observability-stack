@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Exporter unit tests
+        run: |
+          pip install -r exporter/requirements.txt pytest
+          pytest -v
+
+      - name: Check Prometheus config and alert rules
+        run: |
+          docker run --rm -v "$PWD:/work" -w /work --entrypoint promtool \
+            prom/prometheus:v3.5.0 check config prometheus/prometheus.yml
+          docker run --rm -v "$PWD:/work" -w /work --entrypoint promtool \
+            prom/prometheus:v3.5.0 test rules tests/alerts_test.yml
+
+      - name: Check the dashboard is valid JSON
+        run: jq empty grafana/dashboards/linux-host.json
+
+      - name: Lint shell scripts
+        run: shellcheck scripts/*.sh
+
+  smoke:
+    needs: checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start the stack
+        run: ./scripts/setup.sh
+
+      - name: Smoke test
+        run: ./scripts/smoke_test.sh
+
+      - name: Show logs if something failed
+        if: failure()
+        run: docker compose logs
+
+      - name: Stop the stack
+        if: always()
+        run: docker compose down -v
